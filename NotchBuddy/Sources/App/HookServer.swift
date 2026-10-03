@@ -336,21 +336,17 @@ final class HookServer: @unchecked Sendable {
         let rawAgent = payload["coucou_agent"] as? String ?? ""
         let validAgent = Self.validateAgent(rawAgent)
 
-        let termProgram = payload["term_program"] as? String ?? ""
         let bundleId    = payload["bundle_id"]    as? String ?? ""
 
         // Cursor identified solely by its stable Electron bundle ID.
         // ToDesktop builds other apps too — do not match on "todesktop" alone.
         let isCursorEditor = bundleId.lowercased() == "com.todesktop.230313mzl4w4u92"
-        let isVSCodeEditor = !isCursorEditor && (
-            termProgram.lowercased().contains("vscode") ||
-            bundleId.lowercased().contains("vscode"))
 
         // Routing:
         // • "codex" → agent_codex (GitHub build only: workspace pill, approvals in the notch)
         // • other valid coucou_agent → external pill (fire-and-forget, no approval card)
         // • Cursor bundle ID → agent_cursor
-        // • VS Code → integration_claude
+        // • anything else (VS Code, Terminal, iTerm, Ghostty…) → integration_claude
         #if !APPSTORE
         let isCodexEvent = rawAgent == "codex"
         #else
@@ -367,12 +363,9 @@ final class HookServer: @unchecked Sendable {
         } else if isCursorEditor {
             agentId = "agent_cursor"
             isExternalAgent = false
-        } else if isVSCodeEditor {
+        } else {
             agentId = "integration_claude"
             isExternalAgent = false
-        } else {
-            nbLog("Ignored \(name) from \(termProgram.isEmpty ? bundleId : termProgram) (\(projectName))")
-            return
         }
 
         let focused = state.focusId == agentId
@@ -611,12 +604,8 @@ final class HookServer: @unchecked Sendable {
         let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
 
         let rawAgent = payload["coucou_agent"] as? String ?? ""
-        let termProgram = payload["term_program"] as? String ?? ""
         let bundleId    = payload["bundle_id"]    as? String ?? ""
         let isCursorEditor = bundleId.lowercased() == "com.todesktop.230313mzl4w4u92"
-        let isVSCodeEditor = !isCursorEditor && (
-            termProgram.lowercased().contains("vscode") ||
-            bundleId.lowercased().contains("vscode"))
 
         // Codex gets the same approval card as Claude Code / Cursor (GitHub build only).
         // Other external agents (any other coucou_agent) answer immediately with "ask"
@@ -642,13 +631,6 @@ final class HookServer: @unchecked Sendable {
             pillId = "agent_cursor"
         } else {
             pillId = "integration_claude"
-        }
-        guard isCodexRequest || isCursorEditor || isVSCodeEditor else {
-            Task.detached { [weak self] in
-                self?.sendLine(fd: fd, text: #"{"permissionDecision":"ask"}"#)
-                close(fd)
-            }
-            return
         }
 
         let tool = payload["tool_name"] as? String ?? "Tool"
@@ -787,12 +769,8 @@ final class HookServer: @unchecked Sendable {
         let projectName = aliasProjectName(rawName.isEmpty ? "Session" : rawName)
 
         let rawAgent    = payload["coucou_agent"] as? String ?? ""
-        let termProgram = payload["term_program"]  as? String ?? ""
         let bundleId    = payload["bundle_id"]     as? String ?? ""
         let isCursorEditor = bundleId.lowercased() == "com.todesktop.230313mzl4w4u92"
-        let isVSCodeEditor = !isCursorEditor && (
-            termProgram.lowercased().contains("vscode") ||
-            bundleId.lowercased().contains("vscode"))
         #if !APPSTORE
         let isCodexRequest = rawAgent == "codex"
         #else
@@ -806,7 +784,8 @@ final class HookServer: @unchecked Sendable {
         } else {
             pillId = "integration_claude"
         }
-        guard isCodexRequest || isCursorEditor || isVSCodeEditor else {
+        // Other external agents (any other coucou_agent) have no question card.
+        guard isCodexRequest || Self.validateAgent(rawAgent) == nil else {
             Task.detached { [weak self] in
                 self?.sendLine(fd: fd, text: #"{"permissionDecision":"ask"}"#)
                 close(fd)

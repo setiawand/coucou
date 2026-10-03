@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Claude Code sessions started from any terminal (Terminal, iTerm, Ghostty…) now show up in the island and can be approved from the notch. Before, only sessions started from the VS Code or Cursor terminal were picked up.
+
 ## 0.1.3 — October 3, 2026
 
 - Answer Claude's questions from the notch: when Claude Code asks a multiple-choice question, pick an option or type your own answer right in the island, and Reply in terminal hands it back. Update your hooks in Settings to turn it on (#165) — thanks @Vega8991 for the idea (#94)
